@@ -38,8 +38,6 @@
 #define	cutoff 15
 #define	amt 1   
 
-#define	m1target 0 
-#define	m2target 0
 #define	m1rate 5 
 #define	m2rate 5
 #define	rotation 425
@@ -229,7 +227,7 @@ void initEncoders()
     lastEnc2 = getEnc(2);
 }
 
-byte getEnc(byte motor){
+int getEnc(int motor){
 	byte b = B00;
 	switch(motor){
 		case motor1:
@@ -253,7 +251,7 @@ byte getEnc(byte motor){
 	return b;
 }
 
-void resetEnc(byte i){
+void resetEnc(int i){
 	switch(i){
 		case motor0: 
 			encoder1 = 0;
@@ -270,7 +268,7 @@ void resetEnc(byte i){
 	}
 }
 
-void UpdateEncoder(byte motor){
+void UpdateEncoder(int motor){
 	switch(motor){
 
 		case motor0:
