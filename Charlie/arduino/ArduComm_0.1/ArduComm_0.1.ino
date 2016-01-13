@@ -28,6 +28,13 @@
 #define sonarTrig2 27
 #define sonarEcho3 29
 #define sonarTrig3 28
+
+#define colorS0 30
+#define colorS1 31
+#define colorS2 33
+#define colorS3 32
+#define colorOUT 34
+
     
 #define	clawOpenPower 200
 #define	clawPower 150
@@ -36,7 +43,7 @@
 #define	clawCloseDelay 150 
     
 #define	cutoff 15
-#define	amt 1   
+
 
 #define	m1rate 5 
 #define	m2rate 5
@@ -46,8 +53,11 @@
 #define	wdiam 4.75f
 	
 //debug commands
-#define DBG_TEST 		0
-#define DBG_ERROR 		-1
+#define DBG_NO_ERROR 0
+#define DBG_TEST 		1
+#define DBG_ERROR   -1
+#define DBG_PRT_ENC 2
+
 	//motor commands will work as such: 0001CCMM
 	//where the C digits are the command type, selecting between target, power, and rate modes
 	//and the M digits will be the motor selection, allowing for up to 4 commands and 4 motors
@@ -56,7 +66,12 @@
 #define CLAW_OPEN 0
 #define CLAW_CLOSE 1
 	//base claw command is 0010XXXX
-	
+
+#define Motor0 0
+#define Motor1 1
+#define Motor2 2
+#define Motor3 3
+
 //encoder commands
 //base encoder command is 0011XXXX
 //sonar commands
@@ -84,23 +99,24 @@ byte
 	lastEnc2,
 	cur1, 
 	cur2, 
-	motorMode = MOTOR_POWER, 
-	masterMotor = motor0;
+	masterMotor = Motor0;
     
 
 enum MotorMode {follow, target, power, rate};
-enum MotorID {motor1, motor2, motor3, motor4};
+
+MotorMode motorMode =power;
+
 bool newCMD = false, ERROR_THROWN = true;
 //String cmd = "";
       
 int triggerPins[] = {sonarTrig0,sonarTrig1,sonarTrig2,sonarTrig3};
 int echoPins[] = {sonarEcho0,sonarEcho1,sonarEcho2,sonarEcho3};
-byte sensorCount = 4;
+int sensorCount = 4;
+
 
 void setup(){
 	//setup the IO pins
 	pinSetup();
-
 	initEncoders();
 	
 	
@@ -119,7 +135,7 @@ void loop(){
 		case 1:
 			break;
 		default:
-		DEBUG()
+		DEBUG(DBG_ERROR);
 	}
 	
 	
@@ -128,40 +144,6 @@ void loop(){
 	UpdateEncoder(0);
 }
 
-void processCMD()
-/*David: Done	
-*/
-{
-	byte in;
-	in = Serial1.read();
-	switch(in & COMMAND_PREFIX_OVERLAY){
-		case DBG_COMMAND:
-			DEBUG(in);
-			break;
-		case MOTOR_COMMAND:
-			if(Serial1.available()>1){
-				int val = Serial1.read();
-				motor(in&B00001100, in&B00000011, val);
-			}
-			else 
-				DEBUG(DBG_ERROR);
-			break;
-		case CLAW_COMMAND:
-			claw(in);
-			break;
-		case PING_COMMAND:
-			//this will return the time that it took for the signal to return to 
-			short dur = ping(in & B00000011);
-			Serial1.print(dur);
-			break;
-		case COMMAND_END:
-			Serial1.print(COMMAND_END);
-		
-		default:
-			DEBUG(DBG_ERROR);
-	}
-	
-}
 
 void pinSetup()
 {
@@ -203,10 +185,22 @@ void initEncoders()
     lastEnc2 = getEnc(2);
 }
 
+void TSC_Init()
+{
+  pinMode(colorS0, OUTPUT);
+  pinMode(colorS1, OUTPUT);
+  pinMode(colorS2, OUTPUT);
+  pinMode(colorS3, OUTPUT);
+  pinMode(colorOUT, INPUT);
+
+  digitalWrite(colorS0, LOW);  // OUTPUT FREQUENCY SCALING 2%
+  digitalWrite(colorS1, HIGH);
+}
+
 int getEnc(int motor){
 	byte b = B00;
 	switch(motor){
-		case motor1:
+		case Motor1:
 			if(digitalRead(m1encA)){
 				b += B10;
 				b += (digitalRead(m1encB))?B00:B01;
@@ -215,7 +209,7 @@ int getEnc(int motor){
 			}
 			break;
 		
-		case motor2:
+		case Motor2:
 			if(digitalRead(m2encA)){
 				b += B10;
 				b += (digitalRead(m2encB))?B00:B01;
@@ -229,14 +223,14 @@ int getEnc(int motor){
 
 void resetEnc(int i){
 	switch(i){
-		case motor0: 
+		case Motor0: 
 			encoder1 = 0;
 			encoder2 = 0;
 			break;
-		case motor1: 
+		case Motor1: 
 			encoder1 = 0;
 			break;
-		case motor2: 
+		case Motor2: 
 			encoder2 = 0;
 			break;
 		default:
@@ -247,9 +241,9 @@ void resetEnc(int i){
 void UpdateEncoder(int motor){
 	switch(motor){
 
-		case motor0:
-			cur1 = getEnc(motor1);
-			cur2 = getEnc(motor2);
+		case Motor0:
+			cur1 = getEnc(Motor1);
+			cur2 = getEnc(Motor2);
 			if(cur1 == B00 && lastEnc1 == B11){
 				encoder1 += 1;  
 			}
@@ -273,8 +267,8 @@ void UpdateEncoder(int motor){
 			lastEnc2 = cur2;
 			break;
 
-		case motor1:
-			cur1 = getEnc(motor1);
+		case Motor1:
+			cur1 = getEnc(Motor1);
 			if(cur1 == B00 && lastEnc1 == B11){
 				encoder1 += 1;  
 			}
@@ -287,8 +281,8 @@ void UpdateEncoder(int motor){
 			lastEnc1 = cur1;
 			break;
 
-		case motor2:
-			cur2 = getEnc(motor2);
+		case Motor2:
+			cur2 = getEnc(Motor2);
 			if(cur2 == B00 && lastEnc2 == B11){
 				encoder2 += 1;  
 			}
@@ -308,13 +302,14 @@ void UpdateEncoder(int motor){
 }
 
 void updateMotorPower(){
+  int a, b;
 	switch(motorMode)
 	{
-		case MOTOR_FOLLOW:
+		casefollow:
 			//some kind of PID here too? set one to target the other. probably with higher P,I,and D values
-			DEBUG(DEBUG_ERROR);//erase this error when you write this portion of code. 
+			DEBUG(DBG_ERROR);//erase this error when you write this portion of code. 
 			break;
-		case MOTOR_TARGET:
+		casetarget:
 			if(abs(m1target-encoder1)>5){
 				a = m1pwr+m1rate*sign(m1pwr);
 				b = (m1target-encoder1)*4;
@@ -332,7 +327,7 @@ void updateMotorPower(){
 				m2pwr = 0;
 			}
 			break;
-		case MOTOR_POWER:
+		casepower:
 		
 			if(m1pwr != m1pwrset){
 				m1pwrset = m1pwrset;
@@ -351,18 +346,18 @@ void updateMotorPower(){
 			   
 			}
 			break;
-		case MOTOR_RATE:
+		case rate:
 			//here, use m1target and m2target for target rate 
 			//some sort of PID is going to be needed here.
 			break;
 		default:
-			motorMode = MOTER_POWER;
-			motor(MOTOR_POWER, motor0, 0);
-			DEBUG_ERROR();
+			motorMode = power;
+			motor(power, Motor0, 0);
+			DEBUG(DBG_ERROR);
 			
 	}
 	
-	//changing output power for motor1
+	//changing output power for Motor1
 	if(m1pwr < -cutoff){
 	  //when power is negative only
 	   analogWrite(Motor1P, 0);
@@ -375,7 +370,7 @@ void updateMotorPower(){
 	 analogWrite(Motor1N, 0);
    }
 	
-	//changing output power for motor2
+	//changing output power for Motor2
 	if(m2pwr < -cutoff){
 	  //when power is negative only
 	   analogWrite(Motor2P, 0);
@@ -389,7 +384,7 @@ void updateMotorPower(){
    }
 }
 
-void DEBUG(int debugcmd){
+void DEBUG(int dbgcmd){
 	
 	switch(dbgcmd){
 		case DBG_PRT_ENC:
@@ -415,7 +410,7 @@ void DEBUG(int debugcmd){
 	
 }
 
-void motor(MotorMode, byte motor, int amt)
+void motor(int motor, int mode, int amt)
 /*Changes the current mode or values relating to the motors: 
 	power mode: set the motors to a constant power output
 	follow mode: set one motor to 
@@ -423,61 +418,61 @@ void motor(MotorMode, byte motor, int amt)
 */
 {
 	motorMode = mode; // change the current motor mode to selection.
-	switch{mode}{
-		case MOTOR_FOLLOW:
+	switch(mode){
+		case follow:
 			switch(motor){
-				case motor0:
+				case Motor0:
 					//if command for both motors to follow,
 					//signal error light and kill motors.
-					motor(MOTOR_POWER, motor0, 0);
-					DEBUG(DEBUG_ERROR);
+					motor(power, Motor0, 0);
+					DEBUG(DBG_ERROR);
 					break;
-				case motor1:
+				case Motor1:
 					break;
-				case motor2:
+				case Motor2:
 					break;
 			}
 			//for motor following
 			
 			break;
-		case MOTOR_TARGET:
+		case target:
 			switch(motor){
-				case motor0:
+				case Motor0:
 					m1target = amt + m1Offset;
 					m2target = amt + m2Offset;
 					break;
-				case motor1:
+				case Motor1:
 					m1target = amt + m1Offset;
 					break;
-				case motor2:
+				case Motor2:
 					m1target = amt + m2Offset;
 					break;
 				default:
-				motor(MOTOR_POWER, motor0, 0);
-				DEBUG(DEBUG_ERROR);
+				motor(power, Motor0, 0);
+				DEBUG(DBG_ERROR);
 			}
 			break;
-		case MOTOR_POWER:
+		case Power:
 			
 			switch(motor):
-				case motor0:
+				case Motor0:
 					m1pwrset = amt + m1Offset;
 					m2pwrset = amt + m2Offset;
 					break;
-				case motor1:
+				case Motor1:
 					m1pwrset = amt + m1Offset;
 					break;
-				case motor2:
+				case Motor2:
 					m1pwrset = amt + m2Offset;
 					break;
 				default:
-				motor(MOTOR_POWER, motor0, 0);
-				DEBUG(DEBUG_ERROR);
+				motor(power, Motor0, 0);
+				DEBUG(DBG_ERROR);
 			break;
-		case MOTOR_RATE:
+		case rate:
 			break;
 		default:
-			motor(MOTOR_POWER, motor0, 0);
+			//motor(power, Motor0, 0);
 			DEBUG(DBG_ERROR);
 	}
 }
