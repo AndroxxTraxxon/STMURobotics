@@ -44,52 +44,26 @@
 #define	maxMotorPower 100
 #define	diam 8.5f
 #define	wdiam 4.75f
-
-
-//comm commands
-#define DBG_COMMAND 	B00000000
-#define MOTOR_COMMAND	B00010000
-#define CLAW_COMMAND 	B00100000
-#define ENCODER_COMMAND	B00110000
-#define SONAR_COMMAND	B01000000
-//the base commands will have form XXXX0000
-#define COMMAND_PREFIX_OVERLAY	B11110000
-//comm-specific commands will have the form 1011XXXX
-#define COMMAND_BEGIN	B11011111
-#define COMMAND_END		B11010000
 	
 //debug commands
-#define DBG_TEST 		B00000001
-#define DBG_ERROR 		B00000010
-	//base debug command is 0000XXXX
-//motor commands
-#define MOTOR_FOLLOW	B00010000
-#define MOTOR_TARGET 	B00010100 
-#define MOTOR_POWER 	B00011000
-#define MOTOR_RATE 		B00011100
-	//base motor command is 0001XXXX
-#define motor0 B00
-#define motor1 B01
-#define motor2 B10
+#define DBG_TEST 		0
+#define DBG_ERROR 		-1
 	//motor commands will work as such: 0001CCMM
 	//where the C digits are the command type, selecting between target, power, and rate modes
 	//and the M digits will be the motor selection, allowing for up to 4 commands and 4 motors
 
 //claw commands
-#define CLAW_OPEN B00100001
-#define CLAW_CLOSE B00100010
+#define CLAW_OPEN 0
+#define CLAW_CLOSE 1
 	//base claw command is 0010XXXX
 	
 //encoder commands
-#define ENC_RESET		B00110001
-#define ENC_GET			B00110010
 //base encoder command is 0011XXXX
 //sonar commands
-#define SONAR_GET		B01000100
-#define SONAR_0			B00
-#define SONAR_1			B01
-#define SONAR_2			B10
-#define SONAR_3			B11
+#define SONAR_0			0
+#define SONAR_1			1
+#define SONAR_2			2
+#define SONAR_3			3
 	//base sonar command is 0100XXXX
 	
 
@@ -102,7 +76,8 @@ int m1pwr = 0,
 	encoder1 = 0,
 	encoder2 = 0,
 	m1target = 0, 
-	m2target = 0;
+	m2target = 0, 
+	programProgress;
 	
 byte 
 	lastEnc1,
@@ -112,39 +87,42 @@ byte
 	motorMode = MOTOR_POWER, 
 	masterMotor = motor0;
     
+
+enum MotorMode {follow, target, power, rate};
+enum MotorID {motor1, motor2, motor3, motor4};
 bool newCMD = false, ERROR_THROWN = true;
 //String cmd = "";
       
 int triggerPins[] = {sonarTrig0,sonarTrig1,sonarTrig2,sonarTrig3};
 int echoPins[] = {sonarEcho0,sonarEcho1,sonarEcho2,sonarEcho3};
-byte sensorCount = B100;
+byte sensorCount = 4;
 
 void setup(){
 	//setup the IO pins
 	pinSetup();
-	//open the serial line at 115200 baud.
-	Serial1.begin(115200);
-	
-	//initialize current encoder values
+
 	initEncoders();
 	
-	//TODO: Interrupt command attachments
+	
+	
+	
+	
 	
 }
 
 void loop(){
-	//put code here to be run continuously
-	while(Serial1.available()>0){
-		byte in = Serial1.read();
-		
-		if(in == COMMAND_BEGIN)
-			processCMD();
-		else{
-			DEBUG(DBG_ERROR);
-		}
-		UpdateMotorPower()
-		UpdateEncoder(0);
+	
+	switch(programProgress)
+	{
+		case 0:
+			break;
+		case 1:
+			break;
+		default:
+		DEBUG()
 	}
+	
+	
 	//update encoders as often as is possible
 	updateMotorPower();
 	UpdateEncoder(0);
@@ -186,8 +164,6 @@ void processCMD()
 }
 
 void pinSetup()
-/* David: Done	
-*/
 {
 	//Motor Setup
   pinMode(Motor1P, OUTPUT);
@@ -413,7 +389,7 @@ void updateMotorPower(){
    }
 }
 
-void DEBUG(byte dbgcmd){
+void DEBUG(int debugcmd){
 	
 	switch(dbgcmd){
 		case DBG_PRT_ENC:
@@ -439,7 +415,7 @@ void DEBUG(byte dbgcmd){
 	
 }
 
-void motor(byte mode, byte motor, int amt)
+void motor(MotorMode, byte motor, int amt)
 /*Changes the current mode or values relating to the motors: 
 	power mode: set the motors to a constant power output
 	follow mode: set one motor to 
@@ -506,7 +482,7 @@ void motor(byte mode, byte motor, int amt)
 	}
 }
 
-void claw(byte mode)
+void claw(int mode)
 /*
 	Operates the claw: use CLAW_OPEN as input to open and CLAW_CLOSE as input to close.
 	TODO: Check to see if claw is closed already.
